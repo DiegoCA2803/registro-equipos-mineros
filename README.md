@@ -2,7 +2,7 @@
 
 Inventario de camiones, excavadoras y perforadoras. La pantalla consulta una API REST y muestra el código, el tipo y el horómetro de cada equipo almacenado en PostgreSQL.
 
-Esta primera versión permite consultar el inventario y desplegar los dos servicios desde la terminal. Las operaciones de alta, edición y baja y el historial de mantenimiento se incorporarán en las próximas versiones.
+La pantalla permite consultar el inventario. La API ya permite crear, editar y eliminar equipos. Los dos servicios se despliegan desde la terminal.
 
 ## Versión publicada
 
@@ -58,6 +58,22 @@ Para detener la aplicación, pulsa Ctrl+C en ambas terminales y ejecuta `docker 
 | --- | --- |
 | `GET /health` | HTTP 200 y `{"status":"ok"}` si PostgreSQL responde. HTTP 503 si falla la consulta. |
 | `GET /api/equipos` | HTTP 200 y `{"equipos":[...]}`, ordenados por código. El horómetro es un número en horas. |
+| `POST /api/equipos` | HTTP 201, la ubicación del equipo y `{"equipo":{...}}`. Recibe `codigo`, `tipo` y `horometro`. |
+| `PATCH /api/equipos/:id` | HTTP 200 y `{"equipo":{...}}`. Recibe en JSON los campos que se quieren cambiar. |
+| `DELETE /api/equipos/:id` | HTTP 204 al eliminar el equipo. |
+
+El código es único y admite hasta 80 caracteres. La API quita los espacios al inicio y al final. Los tipos permitidos son `camion`, `excavadora` y `perforadora`. El horómetro acepta 0 y valores positivos con hasta dos decimales. La API devuelve `400` para datos inválidos, `404` si el equipo no existe y `409` si el código ya está en uso.
+
+Con la base local en marcha, estos comandos crean un equipo, editan su horómetro y lo eliminan.
+
+```powershell
+$api = 'http://localhost:3001/api/equipos'
+$alta = @{ codigo = 'CAM-01'; tipo = 'camion'; horometro = 25.5 } | ConvertTo-Json
+$creado = Invoke-RestMethod $api -Method Post -ContentType 'application/json' -Body $alta
+$equipoUrl = "$api/$($creado.equipo.id)"
+Invoke-RestMethod $equipoUrl -Method Patch -ContentType 'application/json' -Body '{"horometro":30}'
+Invoke-RestMethod $equipoUrl -Method Delete
+```
 
 ```powershell
 Invoke-RestMethod http://localhost:3001/health
