@@ -33,6 +33,7 @@
                 <th scope="col" role="columnheader">Código</th>
                 <th scope="col" role="columnheader">Tipo</th>
                 <th scope="col" role="columnheader" class="hours">Horómetro</th>
+                <th scope="col" role="columnheader" class="maintenance-state-heading">Estado</th>
                 <th scope="col" role="columnheader" class="actions-heading">Acciones</th>
               </tr>
             </thead>
@@ -71,12 +72,34 @@
     <dialog id="equipment-removal" aria-labelledby="removal-title" aria-describedby="removal-description">
       <form id="removal-form">
         <h2 id="removal-title">Eliminar equipo</h2>
-        <p id="removal-description">¿Quieres eliminar <strong id="removal-code"></strong> del inventario?</p>
+        <p id="removal-description">¿Quieres eliminar <strong id="removal-code"></strong> y su historial de mantenimiento?</p>
         <fieldset>
           <p class="form-error" role="alert"></p>
           <div class="dialog-actions">
             <button type="button" data-close autofocus>Cancelar</button>
             <button type="submit" class="danger">Eliminar equipo</button>
+          </div>
+        </fieldset>
+      </form>
+    </dialog>
+    <dialog id="equipment-maintenance" aria-labelledby="maintenance-title">
+      <form id="maintenance-form">
+        <h2 id="maintenance-title">Mantenimiento</h2>
+        <p id="maintenance-code" class="maintenance-code"></p>
+        <dl class="maintenance-readings">
+          <div><dt>Horómetro total</dt><dd id="maintenance-total"></dd></div>
+          <div><dt>Horas del ciclo</dt><dd id="maintenance-cycle"></dd></div>
+        </dl>
+        <section aria-labelledby="maintenance-history-title">
+          <h3 id="maintenance-history-title">Historial</h3>
+          <p id="maintenance-history-status" role="status"></p>
+          <ol id="maintenance-history" class="maintenance-history"></ol>
+        </section>
+        <fieldset>
+          <p class="form-error" role="alert"></p>
+          <div class="dialog-actions">
+            <button type="button" data-close autofocus>Cerrar</button>
+            <button id="register-maintenance" type="submit" class="primary">Registrar mantenimiento</button>
           </div>
         </fieldset>
       </form>

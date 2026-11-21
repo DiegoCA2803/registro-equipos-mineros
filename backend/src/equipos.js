@@ -1,6 +1,6 @@
 const columns = "id, codigo, tipo, horometro::float8 AS horometro";
 const fields = new Set(["codigo", "tipo", "horometro"]);
-const types = new Set(["camion", "excavadora", "perforadora"]);
+const intervals = new Map([["camion", 250], ["excavadora", 500], ["perforadora", 300]]);
 const maxBodyBytes = 16 * 1024;
 
 export class RequestError extends Error {
@@ -18,7 +18,7 @@ export function equipmentId(segment) {
   return id;
 }
 
-export async function readEquipment(request, { partial = false } = {}) {
+export async function readJsonObject(request) {
   const contentType = request.headers["content-type"]?.split(";")[0].trim().toLowerCase();
   if (contentType !== "application/json") {
     request.resume();
@@ -45,7 +45,17 @@ export async function readEquipment(request, { partial = false } = {}) {
   if (!data || typeof data !== "object" || Array.isArray(data)) {
     throw new RequestError(400, "El cuerpo debe ser un objeto JSON.");
   }
+  return data;
+}
 
+export function validateHourMeter(value) {
+  if (typeof value !== "number" || !/^\d{1,10}(?:\.\d{1,2})?$/.test(String(value))) {
+    throw new RequestError(400, "El horómetro debe ser un número no negativo con hasta 10 dígitos enteros y 2 decimales.");
+  }
+}
+
+export async function readEquipment(request, { partial = false } = {}) {
+  const data = await readJsonObject(request);
   const keys = Object.keys(data);
   if (keys.some((key) => !fields.has(key))) {
     throw new RequestError(400, "Los campos permitidos son codigo, tipo y horometro.");
@@ -64,19 +74,30 @@ export async function readEquipment(request, { partial = false } = {}) {
     }
     data.codigo = code;
   }
-  if (Object.hasOwn(data, "tipo") && !types.has(data.tipo)) {
+  if (Object.hasOwn(data, "tipo") && !intervals.has(data.tipo)) {
     throw new RequestError(400, "El tipo debe ser camion, excavadora o perforadora.");
   }
-  if (Object.hasOwn(data, "horometro") &&
-      (typeof data.horometro !== "number" || !/^\d{1,10}(?:\.\d{1,2})?$/.test(String(data.horometro)))) {
-    throw new RequestError(400, "El horómetro debe ser un número no negativo con hasta 10 dígitos enteros y 2 decimales.");
-  }
+  if (Object.hasOwn(data, "horometro")) validateHourMeter(data.horometro);
   return data;
 }
 
 export async function listEquipment(pool) {
-  const { rows } = await pool.query(`SELECT ${columns} FROM equipos ORDER BY codigo`);
-  return rows;
+  const { rows } = await pool.query(`
+    SELECT e.id, e.codigo, e.tipo, e.horometro::float8 AS horometro,
+           (e.horometro - COALESCE(ultimo.horometro, 0))::float8 AS horas_desde_ultimo
+    FROM equipos e
+    LEFT JOIN LATERAL (
+      SELECT horometro FROM mantenimientos WHERE equipo_id = e.id ORDER BY horometro DESC LIMIT 1
+    ) ultimo ON true
+    ORDER BY e.codigo
+  `);
+  return rows.map(({ horas_desde_ultimo: horasDesdeUltimo, ...equipo }) => {
+    const intervalo = intervals.get(equipo.tipo);
+    return {
+      ...equipo,
+      mantenimiento: { intervalo, horasDesdeUltimo, requiere: horasDesdeUltimo >= intervalo },
+    };
+  });
 }
 
 export async function createEquipment(pool, { codigo, tipo, horometro }) {
@@ -87,15 +108,49 @@ export async function createEquipment(pool, { codigo, tipo, horometro }) {
   return rows[0];
 }
 
+// Las ediciones del horómetro y el registro de servicios se serializan por equipo.
+export async function withEquipmentLock(pool, id, action) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows: [equipment] } = await client.query(
+      "SELECT horometro::float8 AS horometro FROM equipos WHERE id = $1 FOR UPDATE",
+      [id],
+    );
+    const result = equipment ? await action(client, equipment) : undefined;
+    await client.query("COMMIT");
+    return result;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 export async function updateEquipment(pool, id, { codigo = null, tipo = null, horometro = null }) {
-  const { rows } = await pool.query(
-    `UPDATE equipos
-     SET codigo = COALESCE($1, codigo), tipo = COALESCE($2, tipo), horometro = COALESCE($3, horometro)
-     WHERE id = $4
-     RETURNING ${columns}`,
-    [codigo, tipo, horometro, id],
-  );
-  return rows[0];
+  async function update(client) {
+    const { rows } = await client.query(
+      `UPDATE equipos
+       SET codigo = COALESCE($1, codigo), tipo = COALESCE($2, tipo), horometro = COALESCE($3, horometro)
+       WHERE id = $4
+       RETURNING ${columns}`,
+      [codigo, tipo, horometro, id],
+    );
+    return rows[0];
+  }
+  if (horometro === null) return update(pool);
+
+  return withEquipmentLock(pool, id, async (client) => {
+    const { rows: [last] } = await client.query(
+      "SELECT horometro::float8 AS horometro FROM mantenimientos WHERE equipo_id = $1 ORDER BY horometro DESC LIMIT 1",
+      [id],
+    );
+    if (last && horometro < last.horometro) {
+      throw new RequestError(409, "El horómetro no puede ser menor que la lectura del último mantenimiento.");
+    }
+    return update(client);
+  });
 }
 
 export async function deleteEquipment(pool, id) {

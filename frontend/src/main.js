@@ -13,12 +13,27 @@ const hourMeter = document.querySelector('#hours')
 const removal = document.querySelector('#equipment-removal')
 const removalCode = document.querySelector('#removal-code')
 const removalForm = document.querySelector('#removal-form')
+const maintenanceDialog = document.querySelector('#equipment-maintenance')
+const maintenanceForm = document.querySelector('#maintenance-form')
+const maintenanceCode = document.querySelector('#maintenance-code')
+const maintenanceTotal = document.querySelector('#maintenance-total')
+const maintenanceCycle = document.querySelector('#maintenance-cycle')
+const historyStatus = document.querySelector('#maintenance-history-status')
+const historyList = document.querySelector('#maintenance-history')
+const register = document.querySelector('#register-maintenance')
 
 const equipmentUrl = import.meta.env.API_BASE_URL + '/api/equipos'
 const typeLabels = new Map(Array.from(type.options, (option) => [option.value, option.textContent]))
 const hours = new Intl.NumberFormat('es-PE', { maximumFractionDigits: 2 })
+const serviceDate = new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium', timeStyle: 'short' })
 let editing = null
 let removing = null
+let servicing = null
+let historyRequest = 0
+
+function formatHours(value) {
+  return hours.format(value) + ' h'
+}
 
 async function requestEquipment(path = '', { method = 'GET', body } = {}) {
   let response
@@ -63,11 +78,48 @@ function openRemoval(equipment) {
   removal.showModal()
 }
 
+async function openMaintenance(equipment) {
+  servicing = equipment
+  const request = ++historyRequest
+  maintenanceCode.textContent = equipment.codigo
+  maintenanceTotal.textContent = formatHours(equipment.horometro)
+  const { horasDesdeUltimo, intervalo } = equipment.mantenimiento
+  maintenanceCycle.textContent = `${formatHours(horasDesdeUltimo)} de ${formatHours(intervalo)}`
+  maintenanceForm.querySelector('.form-error').textContent = ''
+  historyList.replaceChildren()
+  historyStatus.textContent = 'Cargando historial…'
+  register.disabled = true
+  maintenanceDialog.showModal()
+
+  try {
+    const { mantenimientos } = await requestEquipment(`/${equipment.id}/mantenimientos`)
+    if (!maintenanceDialog.open || request !== historyRequest) return
+    for (const entry of mantenimientos) {
+      const item = document.createElement('li')
+      const date = document.createElement('time')
+      date.dateTime = entry.fecha
+      date.textContent = serviceDate.format(new Date(entry.fecha))
+      const reading = document.createElement('strong')
+      reading.textContent = formatHours(entry.horometro)
+      item.append(date, reading)
+      historyList.append(item)
+    }
+    register.disabled = mantenimientos[0]?.horometro === equipment.horometro
+    historyStatus.textContent = register.disabled
+      ? 'Ya hay un mantenimiento registrado con esta lectura.'
+      : mantenimientos.length ? '' : 'Aún no hay mantenimientos registrados.'
+  } catch {
+    if (!maintenanceDialog.open || request !== historyRequest) return
+    historyStatus.textContent = 'No se pudo cargar el historial. Cierra esta ventana y vuelve a abrirla para reintentar.'
+    register.disabled = false
+  }
+}
+
 function equipmentRow(equipment) {
   const row = document.createElement('tr')
   row.setAttribute('role', 'row')
   row.dataset.equipmentId = equipment.id
-  const values = [equipment.codigo, typeLabels.get(equipment.tipo) ?? equipment.tipo, hours.format(equipment.horometro) + ' h']
+  const values = [equipment.codigo, typeLabels.get(equipment.tipo) ?? equipment.tipo, formatHours(equipment.horometro)]
   for (const value of values) {
     const cell = row.insertCell()
     cell.setAttribute('role', 'cell')
@@ -75,18 +127,30 @@ function equipmentRow(equipment) {
   }
   row.cells[2].className = 'hours'
 
+  const state = row.insertCell()
+  state.className = 'equipment-state'
+  state.setAttribute('role', 'cell')
+  const badge = document.createElement('span')
+  badge.className = equipment.mantenimiento.requiere ? 'status-badge due' : 'status-badge'
+  badge.textContent = equipment.mantenimiento.requiere ? 'Requiere mantenimiento' : 'Al día'
+  state.append(badge)
+
   const actions = row.insertCell()
   actions.className = 'row-actions'
   actions.setAttribute('role', 'cell')
-  for (const [label, open] of [['Editar', openEditor], ['Eliminar', openRemoval]]) {
+  const buttons = document.createElement('div')
+  buttons.className = 'row-buttons'
+  for (const [label, open] of [['Mantenimiento', openMaintenance], ['Editar', openEditor], ['Eliminar', openRemoval]]) {
     const button = document.createElement('button')
     button.type = 'button'
-    button.className = 'row-button'
+    button.className = open === openRemoval ? 'row-button row-danger' : 'row-button'
     button.textContent = label
-    button.setAttribute('aria-label', label + ' ' + equipment.codigo)
+    const subject = open === openMaintenance ? ' de ' : ' '
+    button.setAttribute('aria-label', label + subject + equipment.codigo)
     button.addEventListener('click', () => open(equipment))
-    actions.append(button)
+    buttons.append(button)
   }
+  actions.append(buttons)
   return row
 }
 
@@ -184,7 +248,17 @@ removalForm.addEventListener('submit', (event) => {
   })
 })
 
-for (const dialog of [editor, removal]) {
+maintenanceForm.addEventListener('submit', (event) => {
+  event.preventDefault()
+  if (register.disabled) return
+  const { id, horometro } = servicing
+  submitChange(maintenanceForm, 'Registrando…', async () => {
+    await requestEquipment(`/${id}/mantenimientos`, { method: 'POST', body: { horometro } })
+    return { id, message: 'Mantenimiento registrado.' }
+  })
+})
+
+for (const dialog of [editor, removal, maintenanceDialog]) {
   dialog.querySelector('[data-close]').addEventListener('click', () => dialog.close())
   dialog.addEventListener('cancel', (event) => {
     if (dialog.querySelector('fieldset').disabled) event.preventDefault()

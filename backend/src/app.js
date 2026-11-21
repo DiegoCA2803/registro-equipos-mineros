@@ -8,6 +8,7 @@ import {
   RequestError,
   updateEquipment,
 } from "./equipos.js";
+import { listMaintenance, readMaintenance, registerMaintenance } from "./mantenimientos.js";
 
 function sendJson(response, status, body) {
   response.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
@@ -27,13 +28,14 @@ export function createApi(pool, frontendOrigin = "http://localhost:5173") {
     const path = request.url.split("?")[0];
     const health = path === "/health";
     const collection = path === "/api/equipos";
-    const item = path.match(/^\/api\/equipos\/([^/]+)$/);
+    const item = path.match(/^\/api\/equipos\/([^/]+)(\/mantenimientos)?$/);
+    const maintenance = Boolean(item?.[2]);
     if (!health && !collection && !item) {
       return sendJson(response, 404, { error: "Ruta desconocida." });
     }
 
     const methods = health ? ["GET", "OPTIONS"] :
-      collection ? ["GET", "POST", "OPTIONS"] : ["PATCH", "DELETE", "OPTIONS"];
+      (collection || maintenance) ? ["GET", "POST", "OPTIONS"] : ["PATCH", "DELETE", "OPTIONS"];
     if (request.method === "OPTIONS") {
       response.writeHead(204, {
         "Access-Control-Allow-Methods": methods.join(", "),
@@ -51,17 +53,23 @@ export function createApi(pool, frontendOrigin = "http://localhost:5173") {
         await pool.query("SELECT 1");
         return sendJson(response, 200, { status: "ok" });
       }
-      if (request.method === "GET") {
+      if (collection && request.method === "GET") {
         return sendJson(response, 200, { equipos: await listEquipment(pool) });
       }
-      if (request.method === "POST") {
+      if (collection) {
         const equipo = await createEquipment(pool, await readEquipment(request));
         response.setHeader("Location", `/api/equipos/${equipo.id}`);
         return sendJson(response, 201, { equipo });
       }
 
       const id = equipmentId(item[1]);
-      if (request.method === "PATCH") {
+      if (maintenance && request.method === "GET") {
+        const mantenimientos = await listMaintenance(pool, id);
+        if (mantenimientos) return sendJson(response, 200, { mantenimientos });
+      } else if (maintenance) {
+        const result = await registerMaintenance(pool, id, await readMaintenance(request));
+        if (result) return sendJson(response, result.created ? 201 : 200, { mantenimiento: result.maintenance });
+      } else if (request.method === "PATCH") {
         const equipo = await updateEquipment(pool, id, await readEquipment(request, { partial: true }));
         if (equipo) return sendJson(response, 200, { equipo });
       } else if (await deleteEquipment(pool, id)) {

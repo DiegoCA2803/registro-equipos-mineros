@@ -2,7 +2,7 @@
 
 Inventario de camiones, excavadoras y perforadoras. La pantalla consulta una API REST y muestra el código, el tipo y el horómetro de cada equipo almacenado en PostgreSQL.
 
-Desde el inventario puedes crear, editar y eliminar equipos. Los dos servicios se despliegan desde la terminal.
+Desde el inventario puedes crear, editar y eliminar equipos, ver cuándo requieren mantenimiento y registrar cada servicio. Los dos servicios se despliegan desde la terminal.
 
 ## Versión publicada
 
@@ -52,17 +52,33 @@ docker compose --env-file backend/.env exec db psql -U mineros -d mineros -c "IN
 
 Para detener la aplicación, pulsa Ctrl+C en ambas terminales y ejecuta `docker compose --env-file backend/.env stop`.
 
+## Mantenimiento
+
+| Tipo | Intervalo |
+| --- | ---: |
+| Camión | 250 h |
+| Excavadora | 500 h |
+| Perforadora | 300 h |
+
+El estado cambia a **Requiere mantenimiento** cuando las horas del ciclo alcanzan el intervalo del tipo. El cálculo resta al horómetro total la lectura del último mantenimiento. Antes del primer servicio, el ciclo parte de 0 h.
+
+En el inventario, abre **Mantenimiento** para ver el progreso y el historial. **Registrar mantenimiento** guarda la fecha y la lectura actual en PostgreSQL. Esa lectura pasa a ser el inicio del siguiente ciclo y el horómetro total se conserva. Puedes registrar servicios antes del vencimiento y cada equipo admite un registro por lectura.
+
+Puedes corregir el horómetro hasta la lectura del último servicio. Si cambias el tipo, el sistema aplica el intervalo del tipo nuevo al ciclo en curso. Al eliminar un equipo, también se elimina su historial.
+
 ## Comprobar la base
 
 | Ruta de la API | Resultado esperado |
 | --- | --- |
 | `GET /health` | HTTP 200 y `{"status":"ok"}` si PostgreSQL responde. HTTP 503 si falla la consulta. |
-| `GET /api/equipos` | HTTP 200 y `{"equipos":[...]}`, ordenados por código. El horómetro es un número en horas. |
+| `GET /api/equipos` | HTTP 200 y `{"equipos":[...]}`, ordenados por código. Cada equipo incluye el horómetro total y el objeto `mantenimiento` con `intervalo`, `horasDesdeUltimo` y `requiere`. |
 | `POST /api/equipos` | HTTP 201, la ubicación del equipo y `{"equipo":{...}}`. Recibe `codigo`, `tipo` y `horometro`. |
 | `PATCH /api/equipos/:id` | HTTP 200 y `{"equipo":{...}}`. Recibe en JSON los campos que se quieren cambiar. |
 | `DELETE /api/equipos/:id` | HTTP 204 al eliminar el equipo. |
+| `GET /api/equipos/:id/mantenimientos` | HTTP 200 y `{"mantenimientos":[...]}`. Cada registro contiene `id`, `horometro` y `fecha` en UTC. |
+| `POST /api/equipos/:id/mantenimientos` | Recibe `{"horometro":250}` con la lectura actual. Devuelve `{"mantenimiento":{...}}` con HTTP 201 al registrar un servicio o 200 si ya existía para esa lectura. |
 
-El código es único y admite hasta 80 caracteres. La API quita los espacios al inicio y al final. Los tipos permitidos son `camion`, `excavadora` y `perforadora`. El horómetro acepta 0 y valores positivos con hasta dos decimales. La API devuelve `400` para datos inválidos, `404` si el equipo no existe y `409` si el código ya está en uso.
+El código es único y admite hasta 80 caracteres. La API quita los espacios al inicio y al final. Los tipos permitidos son `camion`, `excavadora` y `perforadora`. El horómetro acepta 0 y valores positivos con hasta dos decimales. La API devuelve `400` para datos inválidos, `404` si el equipo no existe y `409` si el código está en uso, la lectura enviada para registrar el servicio está desactualizada o la edición dejaría el horómetro por debajo de un servicio registrado.
 
 Con la base local en marcha, estos comandos crean un equipo, editan su horómetro y lo eliminan.
 

@@ -81,11 +81,21 @@ th { background: #e2e9eb; font-size: .875rem; font-weight: 650; }
 td { border-top: 1px solid var(--line); }
 .hours { text-align: right; font-variant-numeric: tabular-nums; }
 td:first-child { font-weight: 650; }
-.actions-heading, .row-actions { text-align: right; }
-.actions-heading { width: 32%; }
-.row-actions { white-space: nowrap; }
+.actions-heading { width: 36%; text-align: right; }
+.maintenance-state-heading { width: 20%; }
+.row-buttons { display: flex; flex-wrap: wrap; justify-content: end; gap: .4rem; }
 .row-button { font-size: .875rem; padding: .4rem .7rem; }
-.row-button + .row-button { margin-inline-start: .45rem; color: var(--danger); }
+.row-danger { color: var(--danger); }
+.status-badge {
+  display: inline-block;
+  border-radius: .25rem;
+  padding: .22rem .5rem;
+  background: #e8f1ec;
+  color: #23543c;
+  font-size: .825rem;
+  font-weight: 650;
+}
+.status-badge.due { background: #fae9da; color: #773d23; }
 #message { margin: 0; padding: 3.5rem 1rem; text-align: center; color: #4c626c; }
 #message:empty { padding: 0; }
 #message.error { color: #893824; }
@@ -126,12 +136,29 @@ dialog fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
 }
 .dialog-actions { margin-top: 1.25rem; }
 #removal-description { margin: 0; overflow-wrap: anywhere; }
+.maintenance-code { margin: -.35rem 0 1rem; font-weight: 650; overflow-wrap: anywhere; }
+.maintenance-readings {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: .6rem 1rem;
+  margin: 0 0 1rem;
+  padding: .65rem .8rem;
+  background: #eef3f4;
+}
+.maintenance-readings dt { font-size: .85rem; }
+.maintenance-readings dd { margin: 0; font-weight: 650; font-variant-numeric: tabular-nums; }
+#maintenance-history-title { margin: 0 0 .35rem; font-size: 1rem; }
+#maintenance-history-status { margin: 0; color: #4c626c; }
+.maintenance-history { list-style: none; margin: 0; padding: 0; }
+.maintenance-history li { display: flex; justify-content: space-between; gap: .75rem; padding: .45rem 0; border-bottom: 1px solid var(--line); }
+#register-maintenance:disabled { cursor: default; }
 
-@media (max-width: 44rem) {
+@media (max-width: 52rem) {
   table, thead, tbody { display: block; }
   tr { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr) minmax(0, .9fr); }
   th, td { padding: .65rem .65rem; }
-  .actions-heading {
+  .actions-heading, .maintenance-state-heading {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -139,7 +166,7 @@ dialog fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
     overflow: hidden;
     clip-path: inset(50%);
   }
-  .row-actions { grid-column: 1 / -1; border-top: 0; padding-top: 0; }
+  .row-actions, .equipment-state { grid-column: 1 / -1; border-top: 0; padding-top: 0; }
   .row-button { min-height: 2.75rem; }
 }
 
