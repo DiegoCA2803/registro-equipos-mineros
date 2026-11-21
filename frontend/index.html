@@ -13,26 +13,73 @@
       <div class="wrapper">
         <div class="identity"><span class="mark" aria-hidden="true"></span>Flota minera</div>
         <h1>Registro de equipos</h1>
-        <p>Consulta el inventario de maquinaria y sus horas de uso.</p>
+        <p>Gestiona el inventario de maquinaria y sus horas de uso.</p>
       </div>
     </header>
     <main class="wrapper">
       <section aria-labelledby="inventory-title">
         <div class="toolbar">
           <h2 id="inventory-title">Inventario</h2>
-          <button type="button" id="reload" disabled>Actualizar</button>
+          <div class="toolbar-actions">
+            <button type="button" id="reload" disabled>Actualizar</button>
+            <button type="button" id="add-equipment" class="primary" disabled>Nuevo equipo</button>
+          </div>
         </div>
+        <p id="notice" class="notice" role="status"></p>
         <div class="inventory">
-          <table aria-labelledby="inventory-title">
-            <thead>
-              <tr><th scope="col">Código</th><th scope="col">Tipo</th><th scope="col">Horómetro</th></tr>
+          <table role="table" aria-labelledby="inventory-title">
+            <thead role="rowgroup">
+              <tr role="row">
+                <th scope="col" role="columnheader">Código</th>
+                <th scope="col" role="columnheader">Tipo</th>
+                <th scope="col" role="columnheader" class="hours">Horómetro</th>
+                <th scope="col" role="columnheader" class="actions-heading">Acciones</th>
+              </tr>
             </thead>
-            <tbody id="equipment"></tbody>
+            <tbody id="equipment" role="rowgroup"></tbody>
           </table>
           <p id="message" role="status">Cargando equipos…</p>
         </div>
         <noscript>Activa JavaScript en tu navegador para consultar el inventario.</noscript>
       </section>
     </main>
+    <dialog id="equipment-editor" aria-labelledby="editor-title">
+      <form id="equipment-form">
+        <h2 id="editor-title">Nuevo equipo</h2>
+        <fieldset>
+          <div class="form-fields">
+            <label for="code">Código</label>
+            <input id="code" name="codigo" type="text" maxlength="80" required />
+            <label for="type">Tipo</label>
+            <select id="type" name="tipo" required>
+              <option value="">Selecciona un tipo</option>
+              <option value="camion">Camión</option>
+              <option value="excavadora">Excavadora</option>
+              <option value="perforadora">Perforadora</option>
+            </select>
+            <label for="hours">Horómetro (h)</label>
+            <input id="hours" name="horometro" type="number" inputmode="decimal" min="0" max="9999999999.99" step="0.01" required />
+          </div>
+          <p class="form-error" role="alert"></p>
+          <div class="dialog-actions">
+            <button type="button" data-close>Cancelar</button>
+            <button type="submit" class="primary">Crear equipo</button>
+          </div>
+        </fieldset>
+      </form>
+    </dialog>
+    <dialog id="equipment-removal" aria-labelledby="removal-title" aria-describedby="removal-description">
+      <form id="removal-form">
+        <h2 id="removal-title">Eliminar equipo</h2>
+        <p id="removal-description">¿Quieres eliminar <strong id="removal-code"></strong> del inventario?</p>
+        <fieldset>
+          <p class="form-error" role="alert"></p>
+          <div class="dialog-actions">
+            <button type="button" data-close autofocus>Cancelar</button>
+            <button type="submit" class="danger">Eliminar equipo</button>
+          </div>
+        </fieldset>
+      </form>
+    </dialog>
   </body>
 </html>

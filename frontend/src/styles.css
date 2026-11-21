@@ -4,6 +4,7 @@
   --slate: #193d50;
   --copper: #efad75;
   --line: #cad4d7;
+  --danger: #953b33;
   font: 100%/1.5 "Barlow", "Segoe UI", Arial, sans-serif;
   color: var(--ink);
   background: #f2f5f5;
@@ -44,6 +45,7 @@ h1 { margin: 2.3rem 0 .35rem; font-size: clamp(2.5rem, 6vw, 4.6rem); line-height
 .masthead p { margin: 0; color: #dae5e8; max-width: 34rem; }
 main { padding-block: 2.65rem; }
 .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+.toolbar-actions, .dialog-actions { display: flex; flex-wrap: wrap; justify-content: end; gap: .65rem; }
 h2 { font-size: 1.75rem; line-height: 1.1; margin: 0; }
 button {
   font: inherit;
@@ -56,23 +58,98 @@ button {
   cursor: pointer;
 }
 button:hover:enabled { background: #e6eef0; }
-button:focus-visible { outline: 3px solid #14799e; outline-offset: 3px; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #14799e; outline-offset: 2px; }
 button:disabled { opacity: .6; cursor: wait; }
+.primary { background: var(--copper); border-color: #c78757; }
+.primary:hover:enabled { background: #f6c395; }
+.danger { background: var(--danger); border-color: var(--danger); color: white; }
+.danger:hover:enabled { background: #753029; }
+
+.notice { margin: 0; }
+.notice:not(:empty) {
+  margin-bottom: .85rem;
+  padding: .65rem .9rem;
+  border-left: 3px solid #387458;
+  background: #e8f1ec;
+  color: #23543c;
+}
 
 .inventory { border: 1px solid var(--line); border-radius: .35rem; overflow: hidden; background: white; }
 table { width: 100%; border-spacing: 0; text-align: left; table-layout: fixed; }
 th, td { padding: .9rem clamp(.55rem, 2.5vw, 1.5rem); overflow-wrap: anywhere; }
 th { background: #e2e9eb; font-size: .875rem; font-weight: 650; }
 td { border-top: 1px solid var(--line); }
-th:last-child, td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+.hours { text-align: right; font-variant-numeric: tabular-nums; }
 td:first-child { font-weight: 650; }
+.actions-heading, .row-actions { text-align: right; }
+.actions-heading { width: 32%; }
+.row-actions { white-space: nowrap; }
+.row-button { font-size: .875rem; padding: .4rem .7rem; }
+.row-button + .row-button { margin-inline-start: .45rem; color: var(--danger); }
 #message { margin: 0; padding: 3.5rem 1rem; text-align: center; color: #4c626c; }
 #message:empty { padding: 0; }
 #message.error { color: #893824; }
+
+dialog {
+  width: min(29rem, calc(100% - 2rem));
+  max-height: calc(100dvh - 2rem);
+  padding: 0;
+  border: 1px solid #748d99;
+  border-radius: .5rem;
+  color: var(--ink);
+  box-shadow: 0 12px 40px #17354544;
+}
+dialog::backdrop { background: #0b2439a6; }
+dialog form { padding: clamp(1.1rem, 4vw, 1.65rem); }
+dialog h2 { margin-bottom: 1rem; }
+dialog fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+.form-fields { display: grid; gap: .35rem; }
+.form-fields label { font-weight: 650; }
+.form-fields label:not(:first-child) { margin-top: .45rem; }
+.form-fields :is(input, select) {
+  width: 100%;
+  min-height: 2.7rem;
+  padding: .45rem .65rem;
+  font: inherit;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid #748d99;
+  border-radius: .3rem;
+}
+.form-error { margin: 0; overflow-wrap: anywhere; }
+.form-error:not(:empty) {
+  margin-top: .85rem;
+  padding: .6rem .75rem;
+  border-left: 3px solid var(--danger);
+  background: #f8edeb;
+  color: #792d26;
+}
+.dialog-actions { margin-top: 1.25rem; }
+#removal-description { margin: 0; overflow-wrap: anywhere; }
+
+@media (max-width: 44rem) {
+  table, thead, tbody { display: block; }
+  tr { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr) minmax(0, .9fr); }
+  th, td { padding: .65rem .65rem; }
+  .actions-heading {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .row-actions { grid-column: 1 / -1; border-top: 0; padding-top: 0; }
+  .row-button { min-height: 2.75rem; }
+}
+
 @media (max-width: 36rem) {
   .wrapper { width: 92%; }
   .masthead { padding-block: 1.5rem 2rem; }
   .masthead::after { opacity: .5; }
   h1 { margin-top: 2rem; }
   main { padding-block: 2rem; }
+  .toolbar { flex-wrap: wrap; gap: .65rem; }
+  .toolbar-actions { justify-content: start; }
+  .dialog-actions button { padding-inline: .75rem; min-height: 2.75rem; }
 }

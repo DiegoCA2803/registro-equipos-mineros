@@ -2,7 +2,7 @@
 
 Inventario de camiones, excavadoras y perforadoras. La pantalla consulta una API REST y muestra el código, el tipo y el horómetro de cada equipo almacenado en PostgreSQL.
 
-La pantalla permite consultar el inventario. La API ya permite crear, editar y eliminar equipos. Los dos servicios se despliegan desde la terminal.
+Desde el inventario puedes crear, editar y eliminar equipos. Los dos servicios se despliegan desde la terminal.
 
 ## Versión publicada
 
@@ -44,7 +44,7 @@ npm --prefix backend start
 npm --prefix frontend run dev
 ```
 
-Abre [el inventario local](http://localhost:5173). La primera consulta devuelve una lista vacía. Para ver una fila con la base de Compose, puedes cargar este ejemplo local y pulsar **Actualizar**. El comando se puede repetir.
+Abre [el inventario local](http://localhost:5173). Si la base está vacía, pulsa **Nuevo equipo** para registrar el primero. También puedes cargar este ejemplo con Compose y pulsar **Actualizar**. El comando se puede repetir.
 
 ```powershell
 docker compose --env-file backend/.env exec db psql -U mineros -d mineros -c "INSERT INTO equipos (codigo, tipo, horometro) VALUES ('EXC-01', 'excavadora', 125.50) ON CONFLICT (codigo) DO NOTHING"
