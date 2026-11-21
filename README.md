@@ -4,6 +4,14 @@ Inventario de camiones, excavadoras y perforadoras. La pantalla consulta una API
 
 Esta primera versión permite consultar el inventario. Las operaciones de alta, edición y baja, el historial de mantenimiento y el comando de despliegue se incorporarán en las próximas versiones.
 
+## Versión publicada
+
+| Servicio | Enlace |
+| --- | --- |
+| Frontend | [Inventario de equipos](https://registro-equipos-mineros.onrender.com) |
+| API | [Listado de equipos](https://registro-equipos-mineros-api.onrender.com/api/equipos) |
+| Estado de la API | [Comprobación de PostgreSQL](https://registro-equipos-mineros-api.onrender.com/health) |
+
 ## Ejecutar en local
 
 Necesitas Node.js 22.12 o superior, npm y PostgreSQL. Los siguientes comandos de PowerShell se ejecutan desde la raíz del repositorio. Para usar la base de desarrollo incluida, inicia Docker Desktop con contenedores Linux.
@@ -71,6 +79,8 @@ El frontend y la API se publican como servicios independientes desde el mismo re
 | **Render Static Site** | Raíz `frontend`, build `npm ci --include=dev && npm run build`, directorio público `dist`. Configurar `API_BASE_URL` con el origen HTTPS de la API antes de compilar. |
 
 Reserva ambos servicios para conocer sus direcciones. Aplica la migración, publica la API y luego el sitio. Si cambias `API_BASE_URL`, vuelve a compilar el frontend. Comprueba la URL pública de `/health` y abre el sitio para confirmar que el navegador puede consultar el inventario desde su propio origen.
+
+En los dos servicios de esta demo, `Auto-Deploy` está en `Off`. Tras subir los cambios, usa **Manual Deploy** en cada servicio y comprueba las URL públicas.
 
 La API gratuita de Render entra en reposo tras 15 minutos sin tráfico y su primera respuesta puede tardar alrededor de un minuto. Neon ofrece un plan gratuito sin límite de tiempo. [Condiciones de Render](https://render.com/docs/free) · [Plan gratuito de Neon](https://neon.com/pricing)
 
