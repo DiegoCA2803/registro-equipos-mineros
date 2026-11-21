@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#193d50" />
+    <title>Registro de equipos | Flota minera</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+    <script type="module" src="/src/main.js"></script>
+  </head>
+  <body>
+    <header class="masthead">
+      <div class="wrapper">
+        <div class="identity"><span class="mark" aria-hidden="true"></span>Flota minera</div>
+        <h1>Registro de equipos</h1>
+        <p>Consulta el inventario de maquinaria y sus horas de uso.</p>
+      </div>
+    </header>
+    <main class="wrapper">
+      <section aria-labelledby="inventory-title">
+        <div class="toolbar">
+          <h2 id="inventory-title">Inventario</h2>
+          <button type="button" id="reload" disabled>Actualizar</button>
+        </div>
+        <div class="inventory">
+          <table aria-labelledby="inventory-title">
+            <thead>
+              <tr><th scope="col">Código</th><th scope="col">Tipo</th><th scope="col">Horómetro</th></tr>
+            </thead>
+            <tbody id="equipment"></tbody>
+          </table>
+          <p id="message" role="status">Cargando equipos…</p>
+        </div>
+        <noscript>Activa JavaScript en tu navegador para consultar el inventario.</noscript>
+      </section>
+    </main>
+  </body>
+</html>
