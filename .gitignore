@@ -4,5 +4,6 @@ coverage/
 .env
 .env.*
 !.env.example
+!.env.deploy.example
 *.local.md
 *.log

@@ -2,7 +2,7 @@
 
 Inventario de camiones, excavadoras y perforadoras. La pantalla consulta una API REST y muestra el código, el tipo y el horómetro de cada equipo almacenado en PostgreSQL.
 
-Esta primera versión permite consultar el inventario. Las operaciones de alta, edición y baja, el historial de mantenimiento y el comando de despliegue se incorporarán en las próximas versiones.
+Esta primera versión permite consultar el inventario y desplegar los dos servicios desde la terminal. Las operaciones de alta, edición y baja y el historial de mantenimiento se incorporarán en las próximas versiones.
 
 ## Versión publicada
 
@@ -80,7 +80,27 @@ El frontend y la API se publican como servicios independientes desde el mismo re
 
 Reserva ambos servicios para conocer sus direcciones. Aplica la migración, publica la API y luego el sitio. Si cambias `API_BASE_URL`, vuelve a compilar el frontend. Comprueba la URL pública de `/health` y abre el sitio para confirmar que el navegador puede consultar el inventario desde su propio origen.
 
-En los dos servicios de esta demo, `Auto-Deploy` está en `Off`. Tras subir los cambios, usa **Manual Deploy** en cada servicio y comprueba las URL públicas.
+## Desplegar desde la terminal
+
+En ambos servicios de Render, configura **Auto-Deploy** en **Off**. El script usa Git, Node.js 22.12 o superior, npm y la API de Render. Lee la configuración del entorno o de `.env.deploy.local`, que Git excluye.
+
+Para la configuración inicial, copia el ejemplo desde la raíz.
+
+```powershell
+Copy-Item .env.deploy.example .env.deploy.local
+```
+
+Completa `RENDER_API_KEY` y `DATABASE_URL` en el archivo local. Crea la clave de Render para el workspace de los servicios con lectura de **Services** y **Deployment information**, y permiso **Run** en **Run deployments**. Usa la cadena directa de Neon con TLS para `DATABASE_URL`, de la misma base que usa el backend publicado. Los identificadores y las URL del ejemplo corresponden a esta demo. [Claves de la API de Render](https://render.com/docs/api)
+
+Guarda el cambio que quieras publicar en un commit y súbelo a `main` en GitHub. Con el repositorio limpio, ejecuta desde la raíz:
+
+```text
+npm run deploy
+```
+
+El comando verifica que `HEAD` coincide con la punta de `main` en GitHub y que ambos destinos de Render apuntan al mismo repositorio. Instala las dependencias, prueba la API, compila el frontend, aplica las migraciones pendientes y pide a Render construir y publicar el mismo commit en ambos servicios. Espera que Render confirme cada despliegue y verifica la página, `/health` y la consulta del inventario desde el origen del sitio.
+
+Puedes repetir el comando sobre el mismo commit. Las migraciones ya registradas se omiten y se conservan los datos. Si falla una etapa, el comando indica dónde ocurrió y termina con un código distinto de cero. Revisa el despliegue indicado en Render antes de reintentar.
 
 La API gratuita de Render entra en reposo tras 15 minutos sin tráfico y su primera respuesta puede tardar alrededor de un minuto. Neon ofrece un plan gratuito sin límite de tiempo. [Condiciones de Render](https://render.com/docs/free) · [Plan gratuito de Neon](https://neon.com/pricing)
 
