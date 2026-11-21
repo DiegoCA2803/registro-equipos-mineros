@@ -16,6 +16,13 @@ Desde el inventario puedes crear, editar y eliminar equipos, ver cuándo requier
 
 Necesitas Node.js 22.12 o superior, npm y PostgreSQL. Los siguientes comandos de PowerShell se ejecutan desde la raíz del repositorio. Para usar la base de desarrollo incluida, inicia Docker Desktop con contenedores Linux.
 
+Si empiezas desde una copia nueva, clona el repositorio.
+
+```powershell
+git clone https://github.com/DiegoCA2803/registro-equipos-mineros.git
+Set-Location registro-equipos-mineros
+```
+
 **1. Preparar los servicios.** Copia los ejemplos la primera vez e instala las dependencias.
 
 ```powershell
@@ -63,6 +70,8 @@ Para detener la aplicación, pulsa Ctrl+C en ambas terminales y ejecuta `docker 
 El estado cambia a **Requiere mantenimiento** cuando las horas del ciclo alcanzan el intervalo del tipo. El cálculo resta al horómetro total la lectura del último mantenimiento. Antes del primer servicio, el ciclo parte de 0 h.
 
 En el inventario, abre **Mantenimiento** para ver el progreso y el historial. **Registrar mantenimiento** guarda la fecha y la lectura actual en PostgreSQL. Esa lectura pasa a ser el inicio del siguiente ciclo y el horómetro total se conserva. Puedes registrar servicios antes del vencimiento y cada equipo admite un registro por lectura.
+
+Para probarlo, crea un camión con 250 h. Comprueba que aparezca el aviso y registra un mantenimiento. El inventario conserva las 250 h de horómetro total, el estado cambia a **Al día** y el ciclo vuelve a 0 h.
 
 Puedes corregir el horómetro hasta la lectura del último servicio. Si cambias el tipo, el sistema aplica el intervalo del tipo nuevo al ciclo en curso. Al eliminar un equipo, también se elimina su historial.
 
@@ -138,4 +147,4 @@ La API gratuita de Render entra en reposo tras 15 minutos sin tráfico y su prim
 
 ## Uso de IA
 
-Se utilizó OpenAI Codex para preparar la estructura inicial, la API de consulta, la interfaz, las migraciones, las pruebas y esta guía.
+Se utilizó OpenAI Codex para implementar la API, la interfaz, las migraciones, la automatización del despliegue y las pruebas. También se usó para redactar esta guía y preparar el video de demostración a partir del sitio publicado y la salida real de terminal.
