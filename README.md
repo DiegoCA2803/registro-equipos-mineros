@@ -2,14 +2,14 @@
 
 Inventario de camiones, excavadoras y perforadoras. La pantalla consulta una API REST y muestra el código, el tipo y el horómetro de cada equipo almacenado en PostgreSQL.
 
-Desde el inventario puedes crear, editar y eliminar equipos, ver cuándo requieren mantenimiento y registrar cada servicio. Los dos servicios se despliegan desde la terminal.
+Desde el inventario puedes crear, editar y eliminar equipos, ver cuándo requieren mantenimiento y registrar cada servicio. Para entrar, usa el acceso de demostración. La API protege el inventario con un JWT que dura una hora. Los dos servicios se despliegan desde la terminal.
 
 ## Versión publicada
 
 | Servicio | Enlace |
 | --- | --- |
 | Frontend | [Inventario de equipos](https://registro-equipos-mineros.onrender.com) |
-| API | [Listado de equipos](https://registro-equipos-mineros-api.onrender.com/api/equipos) |
+| API | [Listado de equipos con autenticación](https://registro-equipos-mineros-api.onrender.com/api/equipos) |
 | Estado de la API | [Comprobación de PostgreSQL](https://registro-equipos-mineros-api.onrender.com/health) |
 
 ## Ejecutar en local
@@ -30,7 +30,10 @@ Copy-Item backend/.env.example backend/.env
 Copy-Item frontend/.env.example frontend/.env
 npm ci --prefix backend
 npm ci --prefix frontend
+npm --prefix backend run auth:setup
 ```
+
+Guarda el usuario y la contraseña que muestra `auth:setup` la primera vez. El comando guarda el hash y la clave de firma en `backend/.env`.
 
 **2. Iniciar PostgreSQL y aplicar el esquema.** Compose expone la base en el puerto local 5433 y conserva el inventario en un volumen. Si ya tienes una base PostgreSQL dedicada a esta aplicación, configura su cadena en `backend/.env` y ejecuta solo la migración.
 
@@ -51,10 +54,10 @@ npm --prefix backend start
 npm --prefix frontend run dev
 ```
 
-Abre [el inventario local](http://localhost:5173). Si la base está vacía, pulsa **Nuevo equipo** para registrar el primero. También puedes cargar este ejemplo con Compose y pulsar **Actualizar**. El comando se puede repetir.
+Abre [el inventario local](http://localhost:5173) e inicia sesión. Puedes crear un equipo desde la web o cargar cuatro equipos ficticios y un historial de ejemplo con este comando. Vuélvelo a ejecutar si necesitas recuperar un equipo de demo que hayas borrado.
 
 ```powershell
-docker compose --env-file backend/.env exec db psql -U mineros -d mineros -c "INSERT INTO equipos (codigo, tipo, horometro) VALUES ('EXC-01', 'excavadora', 125.50) ON CONFLICT (codigo) DO NOTHING"
+npm --prefix backend run seed:demo
 ```
 
 Para detener la aplicación, pulsa Ctrl+C en ambas terminales y ejecuta `docker compose --env-file backend/.env stop`.
@@ -80,6 +83,7 @@ Puedes corregir el horómetro hasta la lectura del último servicio. Si cambias 
 | Ruta de la API | Resultado esperado |
 | --- | --- |
 | `GET /health` | HTTP 200 y `{"status":"ok"}` si PostgreSQL responde. HTTP 503 si falla la consulta. |
+| `POST /api/auth/login` | Recibe `username` y `password` y devuelve `{"token":"..."}` si son correctos. |
 | `GET /api/equipos` | HTTP 200 y `{"equipos":[...]}`, ordenados por código. Cada equipo incluye el horómetro total y el objeto `mantenimiento` con `intervalo`, `horasDesdeUltimo` y `requiere`. |
 | `POST /api/equipos` | HTTP 201, la ubicación del equipo y `{"equipo":{...}}`. Recibe `codigo`, `tipo` y `horometro`. |
 | `PATCH /api/equipos/:id` | HTTP 200 y `{"equipo":{...}}`. Recibe en JSON los campos que se quieren cambiar. |
@@ -87,22 +91,28 @@ Puedes corregir el horómetro hasta la lectura del último servicio. Si cambias 
 | `GET /api/equipos/:id/mantenimientos` | HTTP 200 y `{"mantenimientos":[...]}`. Cada registro contiene `id`, `horometro` y `fecha` en UTC. |
 | `POST /api/equipos/:id/mantenimientos` | Recibe `{"horometro":250}` con la lectura actual. Devuelve `{"mantenimiento":{...}}` con HTTP 201 al registrar un servicio o 200 si ya existía para esa lectura. |
 
+Las rutas de equipos y mantenimiento requieren la cabecera `Authorization: Bearer <token>`. El endpoint `/health` es público. Las credenciales de la demo publicada se comparten por separado con quien la evalúe.
+
 El código es único y admite hasta 80 caracteres. La API quita los espacios al inicio y al final. Los tipos permitidos son `camion`, `excavadora` y `perforadora`. El horómetro acepta 0 y valores positivos con hasta dos decimales. La API devuelve `400` para datos inválidos, `404` si el equipo no existe y `409` si el código está en uso, la lectura enviada para registrar el servicio está desactualizada o la edición dejaría el horómetro por debajo de un servicio registrado.
 
 Con la base local en marcha, estos comandos crean un equipo, editan su horómetro y lo eliminan.
 
 ```powershell
 $api = 'http://localhost:3001/api/equipos'
+$credencial = Get-Credential -UserName 'demo' -Message 'Ingresa el acceso local'
+$login = @{ username = $credencial.UserName; password = $credencial.GetNetworkCredential().Password } | ConvertTo-Json
+$jwt = Invoke-RestMethod 'http://localhost:3001/api/auth/login' -Method Post -ContentType 'application/json' -Body $login
+$headers = @{ Authorization = "Bearer $($jwt.token)" }
 $alta = @{ codigo = 'CAM-01'; tipo = 'camion'; horometro = 25.5 } | ConvertTo-Json
-$creado = Invoke-RestMethod $api -Method Post -ContentType 'application/json' -Body $alta
+$creado = Invoke-RestMethod $api -Headers $headers -Method Post -ContentType 'application/json' -Body $alta
 $equipoUrl = "$api/$($creado.equipo.id)"
-Invoke-RestMethod $equipoUrl -Method Patch -ContentType 'application/json' -Body '{"horometro":30}'
-Invoke-RestMethod $equipoUrl -Method Delete
+Invoke-RestMethod $equipoUrl -Headers $headers -Method Patch -ContentType 'application/json' -Body '{"horometro":30}'
+Invoke-RestMethod $equipoUrl -Headers $headers -Method Delete
 ```
 
 ```powershell
 Invoke-RestMethod http://localhost:3001/health
-Invoke-RestMethod http://localhost:3001/api/equipos | ConvertTo-Json -Depth 4
+Invoke-RestMethod http://localhost:3001/api/equipos -Headers $headers | ConvertTo-Json -Depth 4
 npm --prefix backend test
 npm --prefix frontend run build
 ```
@@ -116,10 +126,10 @@ El frontend y la API se publican como servicios independientes desde el mismo re
 | Destino | Configuración |
 | --- | --- |
 | **Neon Free** | Crear una base PostgreSQL. Guardar la cadena de conexión con TLS como secreto. Aplicar las migraciones con la cadena directa de Neon en `DATABASE_URL` del proceso que ejecute `npm --prefix backend run migrate`. |
-| **Render Web Service · Free** | Raíz `backend`, entorno Node, build `npm ci`, inicio `npm start`, health check `/health`. Configurar `DATABASE_URL` con la conexión de Neon y `FRONTEND_ORIGIN` con el origen HTTPS exacto del sitio estático. Render asigna `PORT`. |
+| **Render Web Service · Free** | Raíz `backend`, entorno Node, build `npm ci`, inicio `npm start`, health check `/health`. Configurar `DATABASE_URL`, `FRONTEND_ORIGIN`, `AUTH_USERNAME`, `AUTH_PASSWORD_HASH` y `JWT_SECRET`. Render asigna `PORT`. |
 | **Render Static Site** | Raíz `frontend`, build `npm ci --include=dev && npm run build`, directorio público `dist`. Configurar `API_BASE_URL` con el origen HTTPS de la API antes de compilar. |
 
-Reserva ambos servicios para conocer sus direcciones. Aplica la migración, publica la API y luego el sitio. Si cambias `API_BASE_URL`, vuelve a compilar el frontend. Comprueba la URL pública de `/health` y abre el sitio para confirmar que el navegador puede consultar el inventario desde su propio origen.
+Reserva ambos servicios para conocer sus direcciones. Genera el acceso de la demo en una configuración separada con `auth:setup` y usa los valores del backend en Render. Configura `FRONTEND_ORIGIN` con el origen HTTPS exacto del sitio estático y `DATABASE_URL` con la conexión de Neon. Aplica la migración, publica la API y luego el sitio. Si cambias `API_BASE_URL`, vuelve a compilar el frontend. Comprueba `/health` e inicia sesión desde la web publicada.
 
 ## Desplegar desde la terminal
 
@@ -139,7 +149,7 @@ Guarda el cambio que quieras publicar en un commit y súbelo a `main` en GitHub.
 npm run deploy
 ```
 
-El comando verifica que `HEAD` coincide con la punta de `main` en GitHub y que ambos destinos de Render apuntan al mismo repositorio. Instala las dependencias, prueba la API, compila el frontend, aplica las migraciones pendientes y pide a Render construir y publicar el mismo commit en ambos servicios. Espera que Render confirme cada despliegue y verifica la página, `/health` y la consulta del inventario desde el origen del sitio.
+El comando verifica que `HEAD` coincide con la punta de `main` en GitHub y que ambos destinos de Render apuntan al mismo repositorio. Instala las dependencias, prueba la API, compila el frontend, aplica las migraciones pendientes y pide a Render construir y publicar el mismo commit en ambos servicios. Espera que Render confirme cada despliegue, comprueba la página y `/health`, y verifica que la API rechace el acceso al inventario sin sesión con HTTP 401.
 
 Puedes repetir el comando sobre el mismo commit. Las migraciones ya registradas se omiten y se conservan los datos. Si falla una etapa, el comando indica dónde ocurrió y termina con un código distinto de cero. Revisa el despliegue indicado en Render antes de reintentar.
 
@@ -147,4 +157,4 @@ La API gratuita de Render entra en reposo tras 15 minutos sin tráfico y su prim
 
 ## Uso de IA
 
-Se utilizó OpenAI Codex para implementar la API, la interfaz, las migraciones, la automatización del despliegue y las pruebas. También se usó para redactar esta guía y preparar el video de demostración a partir del sitio publicado y la salida real de terminal.
+Se utilizó OpenAI Codex para implementar la API, la interfaz, el inicio de sesión, las migraciones, la automatización del despliegue y las pruebas. También se usó para redactar esta guía y preparar las instrucciones para grabar la demostración.

@@ -141,7 +141,7 @@ async function deploy(service, sha, key) {
   throw new Error(`Render no confirmó ${id} en 10 minutos. Revisa su estado en el panel.`);
 }
 
-async function verify(label, url, validate, headers = {}) {
+async function verify(label, url, validate, headers = {}, expectedStatus = 200) {
   const deadline = Date.now() + smokeTimeout;
   let lastError = "sin respuesta";
   while (Date.now() < deadline) {
@@ -150,9 +150,9 @@ async function verify(label, url, validate, headers = {}) {
         headers, cache: "no-store", redirect: "error",
         signal: AbortSignal.timeout(Math.min(requestTimeout, deadline - Date.now())),
       });
-      if (response.status !== 200) throw new Error(`HTTP ${response.status}`);
+      if (response.status !== expectedStatus) throw new Error(`HTTP ${response.status}`);
       if (!await validate(response)) throw new Error("respuesta inesperada");
-      console.log(`  ${label}: HTTP 200.`);
+      console.log(`  ${label}: HTTP ${expectedStatus}.`);
       return;
     } catch (error) {
       lastError = error.message;
@@ -206,9 +206,9 @@ async function main() {
 
   step = "Verificar la publicación";
   await verify("API /health", `${backend.origin}/health`, async (response) => (await response.json()).status === "ok");
-  await verify("Inventario de la API", `${backend.origin}/api/equipos`, async (response) =>
-    response.headers.get("Access-Control-Allow-Origin") === frontend.origin && Array.isArray((await response.json()).equipos),
-  { Origin: frontend.origin });
+  await verify("Inventario protegido", `${backend.origin}/api/equipos`, (response) =>
+    response.headers.get("Access-Control-Allow-Origin") === frontend.origin && response.headers.get("WWW-Authenticate") === "Bearer",
+  { Origin: frontend.origin }, 401);
   await verify("Frontend", frontend.origin, async (response) =>
     response.headers.get("Content-Type")?.includes("text/html") && /<html[\s>]/i.test(await response.text()));
   console.log(`Despliegue verificado: ${frontend.origin}`);

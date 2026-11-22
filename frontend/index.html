@@ -11,15 +11,33 @@
   <body>
     <header class="masthead">
       <div class="wrapper">
-        <div class="identity"><span class="mark" aria-hidden="true"></span>Flota minera</div>
+        <div class="masthead-top">
+          <div class="identity"><span class="mark" aria-hidden="true"></span>Flota minera</div>
+          <button type="button" id="logout" hidden>Cerrar sesión</button>
+        </div>
         <h1>Registro de equipos</h1>
         <p>Gestiona el inventario de maquinaria y sus horas de uso.</p>
       </div>
     </header>
     <main class="wrapper">
-      <section aria-labelledby="inventory-title">
+      <section class="login-card" id="login-panel" aria-labelledby="login-title">
+        <h2 id="login-title">Iniciar sesión</h2>
+        <form id="login-form" method="post">
+          <fieldset>
+            <div class="form-fields">
+              <label for="login-username">Usuario</label>
+              <input id="login-username" name="username" autocomplete="username" maxlength="80" required />
+              <label for="login-password">Contraseña</label>
+              <input id="login-password" name="password" type="password" autocomplete="current-password" maxlength="128" required />
+            </div>
+            <p class="form-error" role="alert"></p>
+            <button type="submit" class="primary" disabled>Ingresar al inventario</button>
+          </fieldset>
+        </form>
+      </section>
+      <section id="inventory-panel" aria-labelledby="inventory-title" hidden>
         <div class="toolbar">
-          <h2 id="inventory-title">Inventario</h2>
+          <h2 id="inventory-title" tabindex="-1">Inventario</h2>
           <div class="toolbar-actions">
             <button type="button" id="reload" disabled>Actualizar</button>
             <button type="button" id="add-equipment" class="primary" disabled>Nuevo equipo</button>
@@ -41,8 +59,8 @@
           </table>
           <p id="message" role="status">Cargando equipos…</p>
         </div>
-        <noscript>Activa JavaScript en tu navegador para consultar el inventario.</noscript>
       </section>
+      <noscript>Activa JavaScript en tu navegador para consultar el inventario.</noscript>
     </main>
     <dialog id="equipment-editor" aria-labelledby="editor-title">
       <form id="equipment-form">

@@ -1,10 +1,37 @@
 import assert from "node:assert/strict";
+import { randomBytes } from "node:crypto";
 import { once } from "node:events";
 import test from "node:test";
+import { SignJWT } from "jose";
 import { createApi } from "../src/app.js";
+import { createAuth, hashPassword } from "../src/auth.js";
+
+const password = "credencial-sintetica-de-pruebas";
+const config = {
+  AUTH_USERNAME: "demo",
+  AUTH_PASSWORD_HASH: await hashPassword(password),
+  JWT_SECRET: randomBytes(32).toString("hex"),
+};
+const auth = createAuth(config);
+const testToken = await testJwt("1h");
+
+function testJwt(expires) {
+  return new SignJWT({})
+    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+    .setIssuer("registro-equipos-api")
+    .setAudience("registro-equipos-web")
+    .setSubject(config.AUTH_USERNAME)
+    .setIssuedAt()
+    .setExpirationTime(expires)
+    .sign(Buffer.from(config.JWT_SECRET, "hex"));
+}
+
+function request(url, options = {}) {
+  return fetch(url, { ...options, headers: { ...options.headers, Authorization: `Bearer ${testToken}` } });
+}
 
 async function serve(t, query) {
-  const server = createApi({ query, connect: async () => ({ query, release() {} }) });
+  const server = createApi({ query, connect: async () => ({ query, release() {} }) }, auth);
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
   t.after(() => new Promise((resolve) => server.close(resolve)));
@@ -24,7 +51,7 @@ test("la API devuelve los equipos y permite el origen del frontend", async (t) =
   const equipo = { id: 1, codigo: "EXC-01", tipo: "excavadora", horometro: 145.5 };
   const base = await serve(t, async () => ({ rows: [{ ...equipo, horas_desde_ultimo: 145.5 }] }));
   const origin = "http://localhost:5173";
-  const response = await fetch(`${base}/api/equipos`, { headers: { Origin: origin } });
+  const response = await request(`${base}/api/equipos`, { headers: { Origin: origin } });
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("access-control-allow-origin"), origin);
   assert.deepEqual(await response.json(), {
@@ -37,7 +64,7 @@ test("una caída de PostgreSQL se distingue de una flota vacía", async (t) => {
   const health = await fetch(`${base}/health`);
   assert.equal(health.status, 503);
   assert.deepEqual(await health.json(), { status: "error" });
-  const list = await fetch(`${base}/api/equipos`);
+  const list = await request(`${base}/api/equipos`);
   assert.equal(list.status, 503);
   assert.ok((await list.json()).error);
 });
@@ -50,13 +77,13 @@ test("preflight permite enviar JSON desde el origen del frontend", async (t) => 
     headers: {
       Origin: origin,
       "Access-Control-Request-Method": "PATCH",
-      "Access-Control-Request-Headers": "content-type",
+      "Access-Control-Request-Headers": "content-type,authorization",
     },
   });
   assert.equal(response.status, 204);
   assert.equal(response.headers.get("access-control-allow-origin"), origin);
   assert.equal(response.headers.get("access-control-allow-methods"), "PATCH, DELETE, OPTIONS");
-  assert.equal(response.headers.get("access-control-allow-headers"), "Content-Type");
+  assert.equal(response.headers.get("access-control-allow-headers"), "Content-Type, Authorization");
 });
 
 test("la validación rechaza cuerpos inválidos antes de consultar PostgreSQL", async (t) => {
@@ -78,11 +105,11 @@ test("la validación rechaza cuerpos inválidos antes de consultar PostgreSQL", 
     ["PATCH", `${url}/2147483648`, '{"horometro":10}', 400],
   ];
   for (const [method, destination, body, status] of invalid) {
-    const response = await fetch(destination, { method, headers, body });
+    const response = await request(destination, { method, headers, body });
     assert.equal(response.status, status);
     assert.equal(typeof (await response.json()).error, "string");
   }
-  const textBody = await fetch(url, { method: "POST", body: JSON.stringify(valid) });
+  const textBody = await request(url, { method: "POST", body: JSON.stringify(valid) });
   assert.equal(textBody.status, 415);
 });
 
@@ -92,7 +119,7 @@ test("crear normaliza el código y responde con la ubicación del equipo", async
     assert.deepEqual(params, ["EXC-05", "excavadora", 0]);
     return { rows: [equipment] };
   });
-  const response = await fetch(`${base}/api/equipos`, {
+  const response = await request(`${base}/api/equipos`, {
     method: "POST",
     headers: { "Content-Type": "application/json; charset=utf-8" },
     body: JSON.stringify({ codigo: " EXC-05 ", tipo: "excavadora", horometro: 0 }),
@@ -108,16 +135,16 @@ test("distingue los códigos duplicados y los equipos inexistentes", async (t) =
     return { rowCount: 0, rows: [] };
   });
   const headers = { "Content-Type": "application/json" };
-  const duplicate = await fetch(`${base}/api/equipos`, {
+  const duplicate = await request(`${base}/api/equipos`, {
     method: "POST", headers, body: '{"codigo":"CAM-01","tipo":"camion","horometro":10}',
   });
   assert.equal(duplicate.status, 409);
   assert.equal((await duplicate.json()).error, "Ya existe un equipo con ese código.");
-  const missing = await fetch(`${base}/api/equipos/42`, {
+  const missing = await request(`${base}/api/equipos/42`, {
     method: "PATCH", headers, body: '{"horometro":20}',
   });
   assert.equal(missing.status, 404);
-  assert.equal((await fetch(`${base}/api/equipos/42`, { method: "DELETE" })).status, 404);
+  assert.equal((await request(`${base}/api/equipos/42`, { method: "DELETE" })).status, 404);
 });
 
 test("cada tipo vence al alcanzar su intervalo de mantenimiento", async (t) => {
@@ -126,7 +153,7 @@ test("cada tipo vence al alcanzar su intervalo de mantenimiento", async (t) => {
     [limit - 0.01, limit].map((value) => ({ tipo, horometro: 725, horas_desde_ultimo: value })),
   );
   const base = await serve(t, async () => ({ rows }));
-  const response = await fetch(`${base}/api/equipos`);
+  const response = await request(`${base}/api/equipos`);
   assert.equal(response.status, 200);
   const { equipos } = await response.json();
   assert.deepEqual(equipos.map((item) => item.mantenimiento), types.flatMap(([, intervalo]) => [
@@ -152,7 +179,7 @@ test("registrar el mismo mantenimiento devuelve el historial existente y rechaza
     return { rows: [] };
   });
   const path = `${base}/api/equipos/7/mantenimientos`;
-  const register = (body) => fetch(path, {
+  const register = (body) => request(path, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
   });
 
@@ -164,4 +191,40 @@ test("registrar el mismo mantenimiento devuelve el historial existente y rechaza
   const repeated = await register({ horometro: 250 });
   assert.equal(repeated.status, 200);
   assert.deepEqual(await repeated.json(), { mantenimiento: entry });
+});
+
+test("el inventario y el historial exigen un JWT válido", async (t) => {
+  const base = await serve(t, () => assert.fail("Las solicitudes rechazadas no deben llegar a PostgreSQL"));
+  const inventory = await fetch(`${base}/api/equipos`);
+  assert.equal(inventory.status, 401);
+  assert.equal(inventory.headers.get("www-authenticate"), "Bearer");
+
+  const expired = await testJwt(Math.floor(Date.now() / 1000) - 1);
+  for (const token of [expired, "a.b.c"]) {
+    const response = await fetch(`${base}/api/equipos/1/mantenimientos`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(response.status, 401);
+  }
+  assert.equal((await fetch(`${base}/api/equipos/1`, { method: "DELETE" })).status, 401);
+});
+
+test("el login emite un JWT usable solo con la contraseña correcta", async (t) => {
+  const base = await serve(t, async () => ({ rows: [] }));
+  function login(candidate) {
+    return fetch(`${base}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: config.AUTH_USERNAME, password: candidate }),
+    });
+  }
+  const wrong = await login("incorrecta");
+  assert.equal(wrong.status, 401);
+  assert.equal((await wrong.json()).error, "Usuario o contraseña incorrectos.");
+  const valid = await login(password);
+  assert.equal(valid.status, 200);
+  const { token } = await valid.json();
+  const response = await fetch(`${base}/api/equipos`, { headers: { Authorization: `Bearer ${token}` } });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { equipos: [] });
 });

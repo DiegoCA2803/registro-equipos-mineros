@@ -21,8 +21,18 @@ const maintenanceCycle = document.querySelector('#maintenance-cycle')
 const historyStatus = document.querySelector('#maintenance-history-status')
 const historyList = document.querySelector('#maintenance-history')
 const register = document.querySelector('#register-maintenance')
+const loginPanel = document.querySelector('#login-panel')
+const loginForm = document.querySelector('#login-form')
+const loginError = loginForm.querySelector('.form-error')
+const loginSubmit = loginForm.querySelector('[type="submit"]')
+const loginUser = document.querySelector('#login-username')
+const loginPassword = document.querySelector('#login-password')
+const inventory = document.querySelector('#inventory-panel')
+const logout = document.querySelector('#logout')
 
-const equipmentUrl = import.meta.env.API_BASE_URL + '/api/equipos'
+const apiBase = import.meta.env.API_BASE_URL
+const equipmentUrl = apiBase + '/api/equipos'
+const sessionKey = 'registro-equipos.jwt'
 const typeLabels = new Map(Array.from(type.options, (option) => [option.value, option.textContent]))
 const hours = new Intl.NumberFormat('es-PE', { maximumFractionDigits: 2 })
 const serviceDate = new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium', timeStyle: 'short' })
@@ -30,17 +40,46 @@ let editing = null
 let removing = null
 let servicing = null
 let historyRequest = 0
+let session = sessionStorage.getItem(sessionKey)
+
+function openInventory() {
+  loginForm.reset()
+  loginError.textContent = ''
+  loginPanel.hidden = true
+  inventory.hidden = false
+  logout.hidden = false
+  loadEquipment()
+}
+
+function closeSession(messageText = '') {
+  sessionStorage.removeItem(sessionKey)
+  session = null
+  for (const dialog of document.querySelectorAll('dialog[open]')) dialog.close()
+  equipmentBody.replaceChildren()
+  notice.textContent = ''
+  inventory.hidden = true
+  logout.hidden = true
+  loginForm.reset()
+  loginPanel.hidden = false
+  loginError.textContent = messageText
+  loginUser.focus()
+}
 
 function formatHours(value) {
   return hours.format(value) + ' h'
 }
 
 async function requestEquipment(path = '', { method = 'GET', body } = {}) {
+  const token = session
   let response
   try {
     response = await fetch(equipmentUrl + path, {
       method,
-      headers: { Accept: 'application/json', ...(body && { 'Content-Type': 'application/json' }) },
+      headers: {
+        Accept: 'application/json',
+        Authorization: 'Bearer ' + token,
+        ...(body && { 'Content-Type': 'application/json' }),
+      },
       body: body && JSON.stringify(body),
       cache: 'no-store',
       signal: AbortSignal.timeout(90_000),
@@ -49,6 +88,9 @@ async function requestEquipment(path = '', { method = 'GET', body } = {}) {
     throw new Error('No se pudo confirmar la operación. Actualiza el inventario antes de reintentar.')
   }
 
+  if (response.status === 401 && session === token) {
+    closeSession('Tu sesión ya no es válida. Vuelve a iniciar sesión.')
+  }
   if (response.status === 204) return null
   const data = await response.json().catch(() => null)
   if (!response.ok || !data) {
@@ -155,6 +197,7 @@ function equipmentRow(equipment) {
 }
 
 async function loadEquipment() {
+  const token = session
   reload.disabled = true
   addEquipment.disabled = true
   reload.textContent = 'Actualizar'
@@ -164,17 +207,21 @@ async function loadEquipment() {
 
   try {
     const { equipos } = await requestEquipment()
+    if (session !== token) return
     const rows = document.createDocumentFragment()
     for (const equipment of equipos) rows.append(equipmentRow(equipment))
     equipmentBody.replaceChildren(rows)
     message.textContent = equipos.length ? '' : 'Aún no hay equipos registrados.'
   } catch {
+    if (session !== token) return
     message.className = 'error'
     message.textContent = 'No se pudo consultar el inventario. Comprueba la conexión y vuelve a intentarlo.'
     reload.textContent = 'Reintentar'
   } finally {
-    reload.disabled = false
-    addEquipment.disabled = false
+    if (session === token) {
+      reload.disabled = false
+      addEquipment.disabled = false
+    }
   }
 }
 
@@ -270,4 +317,39 @@ reload.addEventListener('click', () => {
   notice.textContent = ''
   loadEquipment()
 })
-loadEquipment()
+logout.addEventListener('click', () => closeSession())
+loginForm.addEventListener('submit', async (event) => {
+  event.preventDefault()
+  const fields = loginForm.querySelector('fieldset')
+  if (fields.disabled) return
+  loginError.textContent = ''
+  fields.disabled = true
+  loginSubmit.textContent = 'Ingresando…'
+  try {
+    const response = await fetch(apiBase + '/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: loginUser.value.trim(), password: loginPassword.value }),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(90_000),
+    })
+    const data = await response.json().catch(() => null)
+    if (!response.ok || typeof data?.token !== 'string') {
+      throw new Error(data?.error || 'No se pudo iniciar sesión. Inténtalo otra vez.')
+    }
+    sessionStorage.setItem(sessionKey, data.token)
+    session = data.token
+    openInventory()
+    document.querySelector('#inventory-title').focus()
+  } catch (error) {
+    loginError.textContent = error.name === 'TypeError' || error.name === 'TimeoutError'
+      ? 'No se pudo conectar con el servicio. Inténtalo otra vez.'
+      : error.message
+  } finally {
+    fields.disabled = false
+    loginSubmit.textContent = 'Ingresar al inventario'
+  }
+})
+
+loginSubmit.disabled = false
+if (session) openInventory()

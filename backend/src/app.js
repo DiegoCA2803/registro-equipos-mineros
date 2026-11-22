@@ -15,7 +15,7 @@ function sendJson(response, status, body) {
   response.end(JSON.stringify(body));
 }
 
-export function createApi(pool, frontendOrigin = "http://localhost:5173") {
+export function createApi(pool, auth, frontendOrigin = "http://localhost:5173") {
   const allowedOrigin = new URL(frontendOrigin).origin;
 
   return createServer(async (request, response) => {
@@ -27,19 +27,20 @@ export function createApi(pool, frontendOrigin = "http://localhost:5173") {
 
     const path = request.url.split("?")[0];
     const health = path === "/health";
+    const login = path === "/api/auth/login";
     const collection = path === "/api/equipos";
     const item = path.match(/^\/api\/equipos\/([^/]+)(\/mantenimientos)?$/);
     const maintenance = Boolean(item?.[2]);
-    if (!health && !collection && !item) {
+    if (!health && !login && !collection && !item) {
       return sendJson(response, 404, { error: "Ruta desconocida." });
     }
 
-    const methods = health ? ["GET", "OPTIONS"] :
+    const methods = health ? ["GET", "OPTIONS"] : login ? ["POST", "OPTIONS"] :
       (collection || maintenance) ? ["GET", "POST", "OPTIONS"] : ["PATCH", "DELETE", "OPTIONS"];
     if (request.method === "OPTIONS") {
       response.writeHead(204, {
         "Access-Control-Allow-Methods": methods.join(", "),
-        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
       });
       return response.end();
     }
@@ -52,6 +53,13 @@ export function createApi(pool, frontendOrigin = "http://localhost:5173") {
       if (health) {
         await pool.query("SELECT 1");
         return sendJson(response, 200, { status: "ok" });
+      }
+      if (login) {
+        return sendJson(response, 200, { token: await auth.signIn(request) });
+      }
+      if (!await auth.verify(request.headers.authorization)) {
+        response.setHeader("WWW-Authenticate", "Bearer");
+        return sendJson(response, 401, { error: "Inicia sesión para acceder al inventario." });
       }
       if (collection && request.method === "GET") {
         return sendJson(response, 200, { equipos: await listEquipment(pool) });
@@ -81,10 +89,10 @@ export function createApi(pool, frontendOrigin = "http://localhost:5173") {
       if (response.destroyed) return;
       if (error instanceof RequestError) return sendJson(response, error.status, { error: error.message });
       if (error.code === "23505") return sendJson(response, 409, { error: "Ya existe un equipo con ese código." });
-      console.error(`Error de base de datos en ${request.method} ${path}:`, error.message);
-      const body = health
-        ? { status: "error" }
-        : { error: request.method === "GET" ? "No se pudieron consultar los equipos." : "No se pudo guardar el cambio." };
+      console.error(`Error en ${request.method} ${path}:`, error.message);
+      if (health) return sendJson(response, 503, { status: "error" });
+      if (login) return sendJson(response, 503, { error: "No se pudo iniciar sesión." });
+      const body = { error: request.method === "GET" ? "No se pudieron consultar los equipos." : "No se pudo guardar el cambio." };
       return sendJson(response, 503, body);
     }
   });
