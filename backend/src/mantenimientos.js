@@ -2,12 +2,12 @@ import { readJsonObject, RequestError, validateHourMeter, withEquipmentLock } fr
 
 const columns = "id, horometro::float8 AS horometro, fecha";
 
-export async function listMaintenance(pool, id) {
+export async function listMaintenance(pool, id, soloDemo) {
   const { rows } = await pool.query(
     `SELECT m.id, m.horometro::float8 AS horometro, m.fecha
      FROM equipos e LEFT JOIN mantenimientos m ON m.equipo_id = e.id
-     WHERE e.id = $1 ORDER BY m.horometro DESC`,
-    [id],
+     WHERE e.id = $1 AND (NOT $2::boolean OR e.es_demo) ORDER BY m.horometro DESC`,
+    [id, soloDemo],
   );
   if (rows.length === 0) return undefined;
   return rows[0].id === null ? [] : rows;

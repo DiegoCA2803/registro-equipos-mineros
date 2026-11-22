@@ -28,14 +28,15 @@ export function createApi(pool, auth, frontendOrigin = "http://localhost:5173") 
     const path = request.url.split("?")[0];
     const health = path === "/health";
     const login = path === "/api/auth/login";
+    const demo = path === "/api/auth/demo";
     const collection = path === "/api/equipos";
     const item = path.match(/^\/api\/equipos\/([^/]+)(\/mantenimientos)?$/);
     const maintenance = Boolean(item?.[2]);
-    if (!health && !login && !collection && !item) {
+    if (!health && !login && !demo && !collection && !item) {
       return sendJson(response, 404, { error: "Ruta desconocida." });
     }
 
-    const methods = health ? ["GET", "OPTIONS"] : login ? ["POST", "OPTIONS"] :
+    const methods = (health || demo) ? ["GET", "OPTIONS"] : login ? ["POST", "OPTIONS"] :
       (collection || maintenance) ? ["GET", "POST", "OPTIONS"] : ["PATCH", "DELETE", "OPTIONS"];
     if (request.method === "OPTIONS") {
       response.writeHead(204, {
@@ -57,12 +58,20 @@ export function createApi(pool, auth, frontendOrigin = "http://localhost:5173") 
       if (login) {
         return sendJson(response, 200, { token: await auth.signIn(request) });
       }
-      if (!await auth.verify(request.headers.authorization)) {
+      if (demo) return sendJson(response, 200, auth.demoCredentials());
+
+      const access = await auth.verify(request.headers.authorization);
+      if (!access) {
         response.setHeader("WWW-Authenticate", "Bearer");
         return sendJson(response, 401, { error: "Inicia sesión para acceder al inventario." });
       }
+      const { puedeEditar } = access;
+      if (!puedeEditar && request.method !== "GET") {
+        request.resume();
+        return sendJson(response, 403, { error: "El acceso de prueba es de solo lectura." });
+      }
       if (collection && request.method === "GET") {
-        return sendJson(response, 200, { equipos: await listEquipment(pool) });
+        return sendJson(response, 200, { equipos: await listEquipment(pool, !puedeEditar), puedeEditar });
       }
       if (collection) {
         const equipo = await createEquipment(pool, await readEquipment(request));
@@ -72,7 +81,7 @@ export function createApi(pool, auth, frontendOrigin = "http://localhost:5173") 
 
       const id = equipmentId(item[1]);
       if (maintenance && request.method === "GET") {
-        const mantenimientos = await listMaintenance(pool, id);
+        const mantenimientos = await listMaintenance(pool, id, !puedeEditar);
         if (mantenimientos) return sendJson(response, 200, { mantenimientos });
       } else if (maintenance) {
         const result = await registerMaintenance(pool, id, await readMaintenance(request));

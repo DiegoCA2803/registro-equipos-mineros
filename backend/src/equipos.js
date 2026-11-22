@@ -81,7 +81,7 @@ export async function readEquipment(request, { partial = false } = {}) {
   return data;
 }
 
-export async function listEquipment(pool) {
+export async function listEquipment(pool, soloDemo) {
   const { rows } = await pool.query(`
     SELECT e.id, e.codigo, e.tipo, e.horometro::float8 AS horometro,
            (e.horometro - COALESCE(ultimo.horometro, 0))::float8 AS horas_desde_ultimo
@@ -89,8 +89,9 @@ export async function listEquipment(pool) {
     LEFT JOIN LATERAL (
       SELECT horometro FROM mantenimientos WHERE equipo_id = e.id ORDER BY horometro DESC LIMIT 1
     ) ultimo ON true
+    WHERE NOT $1::boolean OR e.es_demo
     ORDER BY e.codigo
-  `);
+  `, [soloDemo]);
   return rows.map(({ horas_desde_ultimo: horasDesdeUltimo, ...equipo }) => {
     const intervalo = intervals.get(equipo.tipo);
     return {

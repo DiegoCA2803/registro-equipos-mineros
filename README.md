@@ -2,7 +2,7 @@
 
 Inventario de camiones, excavadoras y perforadoras. La pantalla consulta una API REST y muestra el código, el tipo y el horómetro de cada equipo almacenado en PostgreSQL.
 
-Desde el inventario puedes crear, editar y eliminar equipos, ver cuándo requieren mantenimiento y registrar cada servicio. Para entrar, usa el acceso de demostración. La API protege el inventario con un JWT que dura una hora. Los dos servicios se despliegan desde la terminal.
+Desde el inventario puedes crear, editar y eliminar equipos, ver cuándo requieren mantenimiento y registrar cada servicio. El botón **Usar usuario de prueba** rellena el acceso público de solo lectura a los equipos de ejemplo y su historial. Usa la cuenta privada para probar las operaciones de edición. La API usa JWT de una hora. Los dos servicios se despliegan desde la terminal.
 
 ## Versión publicada
 
@@ -83,15 +83,16 @@ Puedes corregir el horómetro hasta la lectura del último servicio. Si cambias 
 | Ruta de la API | Resultado esperado |
 | --- | --- |
 | `GET /health` | HTTP 200 y `{"status":"ok"}` si PostgreSQL responde. HTTP 503 si falla la consulta. |
+| `GET /api/auth/demo` | Devuelve el usuario y la contraseña temporal del acceso público de solo lectura. |
 | `POST /api/auth/login` | Recibe `username` y `password` y devuelve `{"token":"..."}` si son correctos. |
-| `GET /api/equipos` | HTTP 200 y `{"equipos":[...]}`, ordenados por código. Cada equipo incluye el horómetro total y el objeto `mantenimiento` con `intervalo`, `horasDesdeUltimo` y `requiere`. |
+| `GET /api/equipos` | HTTP 200 con `equipos` ordenados por código y `puedeEditar` según el acceso. Cada equipo incluye el horómetro total y el objeto `mantenimiento` con `intervalo`, `horasDesdeUltimo` y `requiere`. |
 | `POST /api/equipos` | HTTP 201, la ubicación del equipo y `{"equipo":{...}}`. Recibe `codigo`, `tipo` y `horometro`. |
 | `PATCH /api/equipos/:id` | HTTP 200 y `{"equipo":{...}}`. Recibe en JSON los campos que se quieren cambiar. |
 | `DELETE /api/equipos/:id` | HTTP 204 al eliminar el equipo. |
 | `GET /api/equipos/:id/mantenimientos` | HTTP 200 y `{"mantenimientos":[...]}`. Cada registro contiene `id`, `horometro` y `fecha` en UTC. |
 | `POST /api/equipos/:id/mantenimientos` | Recibe `{"horometro":250}` con la lectura actual. Devuelve `{"mantenimiento":{...}}` con HTTP 201 al registrar un servicio o 200 si ya existía para esa lectura. |
 
-Las rutas de equipos y mantenimiento requieren la cabecera `Authorization: Bearer <token>`. El endpoint `/health` es público. Las credenciales de la demo publicada se comparten por separado con quien la evalúe.
+Las rutas de equipos y mantenimiento requieren la cabecera `Authorization: Bearer <token>`. El endpoint `/health` es público. El usuario de prueba recibe solo los equipos marcados como ejemplos y su historial. Las credenciales con permiso de edición se comparten en privado con quien evalúe el proyecto.
 
 El código es único y admite hasta 80 caracteres. La API quita los espacios al inicio y al final. Los tipos permitidos son `camion`, `excavadora` y `perforadora`. El horómetro acepta 0 y valores positivos con hasta dos decimales. La API devuelve `400` para datos inválidos, `404` si el equipo no existe y `409` si el código está en uso, la lectura enviada para registrar el servicio está desactualizada o la edición dejaría el horómetro por debajo de un servicio registrado.
 

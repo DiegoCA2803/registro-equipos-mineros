@@ -32,6 +32,8 @@
             </div>
             <p class="form-error" role="alert"></p>
             <button type="submit" class="primary" disabled>Ingresar al inventario</button>
+            <button type="button" id="fill-demo" aria-describedby="demo-hint" disabled>Usar usuario de prueba</button>
+            <p id="demo-hint" class="demo-note">Consulta los equipos de ejemplo y su historial en modo de solo lectura.</p>
           </fieldset>
         </form>
       </section>
@@ -40,9 +42,10 @@
           <h2 id="inventory-title" tabindex="-1">Inventario</h2>
           <div class="toolbar-actions">
             <button type="button" id="reload" disabled>Actualizar</button>
-            <button type="button" id="add-equipment" class="primary" disabled>Nuevo equipo</button>
+            <button type="button" id="add-equipment" class="primary" hidden disabled>Nuevo equipo</button>
           </div>
         </div>
+        <p id="demo-mode" class="demo-note" hidden>Inventario de prueba · Solo lectura</p>
         <p id="notice" class="notice" role="status"></p>
         <div class="inventory">
           <table role="table" aria-labelledby="inventory-title">

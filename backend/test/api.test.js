@@ -56,6 +56,7 @@ test("la API devuelve los equipos y permite el origen del frontend", async (t) =
   assert.equal(response.headers.get("access-control-allow-origin"), origin);
   assert.deepEqual(await response.json(), {
     equipos: [{ ...equipo, mantenimiento: { intervalo: 500, horasDesdeUltimo: 145.5, requiere: false } }],
+    puedeEditar: true,
   });
 });
 
@@ -226,5 +227,43 @@ test("el login emite un JWT usable solo con la contraseña correcta", async (t) 
   const { token } = await valid.json();
   const response = await fetch(`${base}/api/equipos`, { headers: { Authorization: `Bearer ${token}` } });
   assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), { equipos: [] });
+  assert.deepEqual(await response.json(), { equipos: [], puedeEditar: true });
+});
+
+test("el visitante consulta los ejemplos y no puede modificar el inventario", async (t) => {
+  const base = await serve(t, async (sql, params) => {
+    assert.match(sql, /SELECT/);
+    assert.match(sql, /es_demo/);
+    assert.equal(params.at(-1), true, "La consulta del visitante debe filtrar por es_demo");
+    return { rows: [] };
+  });
+  const credentials = await fetch(`${base}/api/auth/demo`);
+  assert.equal(credentials.status, 200);
+  assert.equal(credentials.headers.get("cache-control"), "no-store");
+  const demo = await credentials.json();
+  assert.equal(demo.username, "visitante");
+  assert.ok(demo.password && demo.password !== password);
+
+  const login = await fetch(`${base}/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(demo),
+  });
+  assert.equal(login.status, 200);
+  const { token } = await login.json();
+  const headers = { Authorization: `Bearer ${token}` };
+  const list = await fetch(`${base}/api/equipos`, { headers });
+  assert.equal(list.status, 200);
+  assert.deepEqual(await list.json(), { equipos: [], puedeEditar: false });
+  const history = await fetch(`${base}/api/equipos/1/mantenimientos`, { headers });
+  assert.equal(history.status, 404);
+  for (const [method, path] of [
+    ["POST", "/api/equipos"],
+    ["PATCH", "/api/equipos/1"],
+    ["DELETE", "/api/equipos/1"],
+    ["POST", "/api/equipos/1/mantenimientos"],
+  ]) {
+    const response = await fetch(base + path, { method, headers });
+    assert.equal(response.status, 403);
+  }
 });

@@ -23,11 +23,14 @@ const historyList = document.querySelector('#maintenance-history')
 const register = document.querySelector('#register-maintenance')
 const loginPanel = document.querySelector('#login-panel')
 const loginForm = document.querySelector('#login-form')
+const loginFields = loginForm.querySelector('fieldset')
 const loginError = loginForm.querySelector('.form-error')
 const loginSubmit = loginForm.querySelector('[type="submit"]')
+const fillDemo = document.querySelector('#fill-demo')
 const loginUser = document.querySelector('#login-username')
 const loginPassword = document.querySelector('#login-password')
 const inventory = document.querySelector('#inventory-panel')
+const demoMode = document.querySelector('#demo-mode')
 const logout = document.querySelector('#logout')
 
 const apiBase = import.meta.env.API_BASE_URL
@@ -41,6 +44,7 @@ let removing = null
 let servicing = null
 let historyRequest = 0
 let session = sessionStorage.getItem(sessionKey)
+let canEdit = false
 
 function openInventory() {
   loginForm.reset()
@@ -54,6 +58,9 @@ function openInventory() {
 function closeSession(messageText = '') {
   sessionStorage.removeItem(sessionKey)
   session = null
+  canEdit = false
+  addEquipment.hidden = true
+  demoMode.hidden = true
   for (const dialog of document.querySelectorAll('dialog[open]')) dialog.close()
   equipmentBody.replaceChildren()
   notice.textContent = ''
@@ -130,6 +137,7 @@ async function openMaintenance(equipment) {
   maintenanceForm.querySelector('.form-error').textContent = ''
   historyList.replaceChildren()
   historyStatus.textContent = 'Cargando historial…'
+  register.hidden = !canEdit
   register.disabled = true
   maintenanceDialog.showModal()
 
@@ -182,7 +190,9 @@ function equipmentRow(equipment) {
   actions.setAttribute('role', 'cell')
   const buttons = document.createElement('div')
   buttons.className = 'row-buttons'
-  for (const [label, open] of [['Mantenimiento', openMaintenance], ['Editar', openEditor], ['Eliminar', openRemoval]]) {
+  const rowOptions = [['Mantenimiento', openMaintenance]]
+  if (canEdit) rowOptions.push(['Editar', openEditor], ['Eliminar', openRemoval])
+  for (const [label, open] of rowOptions) {
     const button = document.createElement('button')
     button.type = 'button'
     button.className = open === openRemoval ? 'row-button row-danger' : 'row-button'
@@ -206,8 +216,11 @@ async function loadEquipment() {
   message.textContent = 'Cargando equipos…'
 
   try {
-    const { equipos } = await requestEquipment()
+    const { equipos, puedeEditar } = await requestEquipment()
     if (session !== token) return
+    canEdit = puedeEditar === true
+    addEquipment.hidden = !canEdit
+    demoMode.hidden = canEdit
     const rows = document.createDocumentFragment()
     for (const equipment of equipos) rows.append(equipmentRow(equipment))
     equipmentBody.replaceChildren(rows)
@@ -297,7 +310,7 @@ removalForm.addEventListener('submit', (event) => {
 
 maintenanceForm.addEventListener('submit', (event) => {
   event.preventDefault()
-  if (register.disabled) return
+  if (!canEdit || register.disabled) return
   const { id, horometro } = servicing
   submitChange(maintenanceForm, 'Registrando…', async () => {
     await requestEquipment(`/${id}/mantenimientos`, { method: 'POST', body: { horometro } })
@@ -318,12 +331,36 @@ reload.addEventListener('click', () => {
   loadEquipment()
 })
 logout.addEventListener('click', () => closeSession())
+fillDemo.addEventListener('click', async () => {
+  if (loginFields.disabled) return
+  loginFields.disabled = true
+  loginError.textContent = ''
+  fillDemo.textContent = 'Cargando acceso…'
+  try {
+    const response = await fetch(apiBase + '/api/auth/demo', {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(90_000),
+    })
+    const data = await response.json().catch(() => null)
+    if (!response.ok || typeof data?.username !== 'string' || typeof data?.password !== 'string') {
+      throw new Error('Acceso demo no disponible')
+    }
+    loginUser.value = data.username
+    loginPassword.value = data.password
+  } catch {
+    loginError.textContent = 'No se pudo cargar el acceso de prueba. Inténtalo otra vez.'
+  } finally {
+    loginFields.disabled = false
+    fillDemo.textContent = 'Usar usuario de prueba'
+  }
+  if (!loginError.textContent) loginSubmit.focus()
+})
+
 loginForm.addEventListener('submit', async (event) => {
   event.preventDefault()
-  const fields = loginForm.querySelector('fieldset')
-  if (fields.disabled) return
+  if (loginFields.disabled) return
   loginError.textContent = ''
-  fields.disabled = true
+  loginFields.disabled = true
   loginSubmit.textContent = 'Ingresando…'
   try {
     const response = await fetch(apiBase + '/api/auth/login', {
@@ -346,10 +383,11 @@ loginForm.addEventListener('submit', async (event) => {
       ? 'No se pudo conectar con el servicio. Inténtalo otra vez.'
       : error.message
   } finally {
-    fields.disabled = false
+    loginFields.disabled = false
     loginSubmit.textContent = 'Ingresar al inventario'
   }
 })
 
 loginSubmit.disabled = false
+fillDemo.disabled = false
 if (session) openInventory()

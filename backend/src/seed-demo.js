@@ -5,11 +5,11 @@ try {
   try {
     const { rows: [result] } = await pool.query(`
       WITH nuevos AS (
-        INSERT INTO equipos (codigo, tipo, horometro) VALUES
-          ('DEMO-CAM-01', 'camion', 250),
-          ('DEMO-CAM-02', 'camion', 135.75),
-          ('DEMO-EXC-01', 'excavadora', 830),
-          ('DEMO-PERF-01', 'perforadora', 120.50)
+        INSERT INTO equipos (codigo, tipo, horometro, es_demo) VALUES
+          ('DEMO-CAM-01', 'camion', 250, true),
+          ('DEMO-CAM-02', 'camion', 135.75, true),
+          ('DEMO-EXC-01', 'excavadora', 830, true),
+          ('DEMO-PERF-01', 'perforadora', 120.50, true)
         ON CONFLICT (codigo) DO NOTHING
         RETURNING id, codigo
       ), servicios AS (
